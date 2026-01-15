@@ -322,41 +322,34 @@ function createErrorCard(result, index) {
 
 function generateResponseVariations(baseResponse) {
     const informal = baseResponse
-        .replace(/Olá/gi, 'Oi')
+        .replace(/\bOlá\b/gi, 'Oi')
         .replace(/Como posso ajudar você\?/gi, 'Como posso te ajudar?')
-        .replace(/você/gi, 'tu')
-        .replace(/seu/gi, 'teu')
-        .replace(/Claro!/gi, 'Claro!')
+        .replace(/\bvocê\b/gi, 'tu')
+        .replace(/\bseu\b/gi, 'teu')
+        .replace(/\bClaro!\b/gi, 'Claro!')
         + ' ';
-    
+
     const formal = baseResponse
-        .replace(/Oi/gi, 'Olá')
-        .replace(/tu/gi, 'você')
-        .replace(/teu/gi, 'seu')
-        .replace(/😊/g, '')
-        .replace(/🎄/g, '')
-        .replace(/✨/g, '')
+        .replace(/\bOi\b/gi, 'Olá')
+        .replace(/\btu\b/gi, 'você')
+        .replace(/\bteu\b/gi, 'seu')
+        .replace(/😊|🎄|✨/g, '')
         + ' ';
-    
+
     const professional = 'Prezado(a), ' + baseResponse
-        .replace(/Oi/gi, 'bom dia')
-        .replace(/tu/gi, 'Vossa Senhoria')
-        .replace(/teu/gi, 'seu')
-        .replace(/😊/g, '')
-        .replace(/🎄/g, '')
-        .replace(/✨/g, '')
+        .replace(/\bOi\b/gi, 'Bom dia')
+        .replace(/\btu\b/gi, 'Vossa Senhoria')
+        .replace(/\bteu\b/gi, 'seu')
+        .replace(/😊|🎄|✨/g, '')
         .replace(/!/g, '.')
         + ' ';
-    
-    return {
-        informal,
-        formal,
-        professional
-    };
+
+    return { informal, formal, professional };
 }
 
+
 function verificationNoReply(justificationResponse, responses, index) {
-    if (justificationResponse.indexOf("'no-reply'") === -1) {
+    if (justificationResponse.indexOf("'no-reply'") === -1 || justificationResponse.indexOf('no-reply') === -1) {
         return ` 
         ${createResponseOption('informal', responses.informal, index)}
         ${createResponseOption('formal', responses.formal, index)}
