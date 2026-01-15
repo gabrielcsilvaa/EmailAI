@@ -254,9 +254,7 @@ function createResultCard(result, index) {
                         Sugestões de Resposta
                     </div>
                     <div class="response-options">
-                        ${createResponseOption('informal', responses.informal, index)}
-                        ${createResponseOption('formal', responses.formal, index)}
-                        ${createResponseOption('profissional', responses.professional, index)}
+                        ${verificationNoReply(result.justificativa_curta, responses, index)}
                     </div>
                 </div>
             </div>
@@ -316,7 +314,7 @@ function generateResponseVariations(baseResponse) {
         .replace(/você/gi, 'tu')
         .replace(/seu/gi, 'teu')
         .replace(/Claro!/gi, 'Claro!')
-        + ' Qualquer coisa é só falar! 😊';
+        + ' ';
     
     const formal = baseResponse
         .replace(/Oi/gi, 'Olá')
@@ -325,7 +323,7 @@ function generateResponseVariations(baseResponse) {
         .replace(/😊/g, '')
         .replace(/🎄/g, '')
         .replace(/✨/g, '')
-        + ' Fico à disposição para auxiliá-lo.';
+        + ' ';
     
     const professional = 'Prezado(a), ' + baseResponse
         .replace(/Oi/gi, 'bom dia')
@@ -335,13 +333,25 @@ function generateResponseVariations(baseResponse) {
         .replace(/🎄/g, '')
         .replace(/✨/g, '')
         .replace(/!/g, '.')
-        + ' Atenciosamente, Equipe de Suporte.';
+        + ' ';
     
     return {
         informal,
         formal,
         professional
     };
+}
+
+function verificationNoReply(justificationResponse, responses, index) {
+    if (justificationResponse.indexOf("'no-reply'") === -1) {
+        return ` 
+        ${createResponseOption('informal', responses.informal, index)}
+        ${createResponseOption('formal', responses.formal, index)}
+        ${createResponseOption('profissional', responses.professional, index)}
+        `
+    } else {
+         return `${createResponseOption('formal', responses.formal, index)}`
+    }
 }
 
 async function copyResponse(elementId) {
