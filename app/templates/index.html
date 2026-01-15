@@ -15,8 +15,13 @@
                 </svg>
                 <div>
                     <h1 class="header-title">EmailAI Classifier</h1>
-                    <p class="header-subtitle">Classificação automática de emails com IA</p>
                 </div>
+
+                <button type="submit" class="btn-submit-history" id="button-history">
+                    <svg class="history-icon" fill="none" stroke="currentColor">
+                        <path d="M12,7a2,2,0,1,0-2-2A2,2,0,0,0,12,7Zm0,10a2,2,0,1,0,2,2A2,2,0,0,0,12,17Zm0-7a2,2,0,1,0,2,2A2,2,0,0,0,12,10Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
             </div>
         </header>
         <div class="chat-container">
@@ -56,7 +61,21 @@
                 </form>
             </div>
 
-            <div id="resultsArea" class="results-area"></div>
+            <div id="resultsArea" class="results-area">
+
+            </div>
+        </div>
+        <div id="backdrop" class="backdrop">
+            <aside id="sideModal" class="side-modal">
+                <div class="side-header">
+                    <span>Histórico</span>
+                    <button id="closeModal" class="close-btn">✕</button>
+                </div>
+
+                <div class="side-content" id="historyArea">
+                    
+                </div>
+            </aside>
         </div>
         <footer class="footer">
             <p>AutoU Technical Case • Desenvolvido com Python + Flask + Gemini AI</p>

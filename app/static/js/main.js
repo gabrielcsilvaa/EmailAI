@@ -10,7 +10,8 @@ const elements = {
     btnText: $('btnText'),
     spinner: $('spinner'),
     resultsArea: $('resultsArea'),
-    toast: $('toast')
+    toast: $('toast'),
+    historyArea: $('historyArea')
 };
 
 let selectedFiles = [];
@@ -197,6 +198,18 @@ function displayResults(results) {
     
     setTimeout(() => {
         elements.resultsArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+
+    elements.historyArea.innerHTML += results.map((result) => {
+        if (result.error) {
+             return errorItemsHistory(result);
+        }
+
+        return itemsHistory(result);
+    }).join('');
+
+    setTimeout(() => {
+        elements.historyArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
 }
 
@@ -389,4 +402,77 @@ function showToast(message, type = 'success') {
     setTimeout(() => {
         elements.toast.classList.remove('show');
     }, 3000);
+}
+
+function itemsHistory(result) {
+    const categoryClass = result.categoria?.toLowerCase() || 'produtivo';
+    const categoryIcon = categoryClass === 'produtivo' 
+    ? '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+    : '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+
+    return `  
+        <div class="response-options-history">
+            <div class="response-option-history">
+                <div class="response-option-header-history">
+                    <span class="response-option-type-history">Resumo do e-mail</span>
+                </div>
+
+                <p class="response-option-text-history">
+                    ${result.justificativa_curta}
+                </p>
+
+                <div class="result-category-history">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        ${categoryIcon}
+                    </svg>
+                    ${ result.categoria || "Produtivo"}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function errorItemsHistory(result) {
+    return `  
+        <div class="response-options-history">
+            <div class="response-option-history">
+                <div class="response-option-header-history">
+                    <span class="response-option-type-history">Resumo do e-mail</span>
+                </div>
+
+                <p class="response-option-text-history">
+                    Ocorreu um erro no envio
+                </p>
+
+                <div class="result-category-history">
+                    ERRO
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Modal do Histórico
+const buttonHistory = document.getElementById("button-history");
+const sideModal = document.getElementById("sideModal");
+const backdrop = document.getElementById("backdrop");
+const closeBtn = document.getElementById("closeModal");
+
+function openModal() {
+sideModal.classList.add("active");
+backdrop.classList.add("active");
+}
+
+function closeModal() {
+sideModal.classList.remove("active");
+backdrop.classList.remove("active");
+}
+
+buttonHistory.addEventListener("click", openModal);
+closeBtn.addEventListener("click", closeModal);
+backdrop.addEventListener("click", closeModal);
+
+// Itens do Histórico
+function historyItems() {
+
 }
