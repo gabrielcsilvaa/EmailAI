@@ -206,8 +206,7 @@ function createResultCard(result, index) {
         ? '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         : '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
     
-    // Generate 3 response variations (informal, formal, professional)
-    const responses = generateResponseVariations(result.resposta || '');
+    const responseText = result.resposta || '';
     
     return `
         <div class="result-card" id="result-${index}">
@@ -254,7 +253,7 @@ function createResultCard(result, index) {
                         Sugestões de Resposta
                     </div>
                     <div class="response-options">
-                        ${verificationNoReply(result.justificativa_curta, responses, index)}
+                        ${verificationNoReply(result.justificativa_curta, responseText, index)}
                     </div>
                 </div>
             </div>
@@ -307,51 +306,11 @@ function createErrorCard(result, index) {
     `;
 }
 
-function generateResponseVariations(baseResponse) {
-    const informal = baseResponse
-        .replace(/Olá/gi, 'Oi')
-        .replace(/Como posso ajudar você\?/gi, 'Como posso te ajudar?')
-        .replace(/você/gi, 'tu')
-        .replace(/seu/gi, 'teu')
-        .replace(/Claro!/gi, 'Claro!')
-        + ' ';
-    
-    const formal = baseResponse
-        .replace(/Oi/gi, 'Olá')
-        .replace(/tu/gi, 'você')
-        .replace(/teu/gi, 'seu')
-        .replace(/😊/g, '')
-        .replace(/🎄/g, '')
-        .replace(/✨/g, '')
-        + ' ';
-    
-    const professional = 'Prezado(a), ' + baseResponse
-        .replace(/Oi/gi, 'bom dia')
-        .replace(/tu/gi, 'Vossa Senhoria')
-        .replace(/teu/gi, 'seu')
-        .replace(/😊/g, '')
-        .replace(/🎄/g, '')
-        .replace(/✨/g, '')
-        .replace(/!/g, '.')
-        + ' ';
-    
-    return {
-        informal,
-        formal,
-        professional
-    };
-}
-
-function verificationNoReply(justificationResponse, responses, index) {
+function verificationNoReply(justificationResponse, responseText, index) {
     if (justificationResponse.indexOf("'no-reply'") === -1) {
-        return ` 
-        ${createResponseOption('informal', responses.informal, index)}
-        ${createResponseOption('formal', responses.formal, index)}
-        ${createResponseOption('profissional', responses.professional, index)}
-        `
-    } else {
-         return `${createResponseOption('formal', responses.formal, index)}`
+        return createResponseOption('formal', responseText, index);
     }
+    return '';
 }
 
 async function copyResponse(elementId) {
@@ -390,3 +349,4 @@ function showToast(message, type = 'success') {
         elements.toast.classList.remove('show');
     }, 3000);
 }
+
