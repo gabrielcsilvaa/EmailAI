@@ -62,11 +62,11 @@ email-ai-classifier/
 │   ├── config.py                # Configurações da aplicação
 │   ├── routes/
 │   │   ├── __init__.py
-│   │   └── api.py               # Endpoint /api/process
+│   │   └── rotas_api.py               # Endpoint /api/process
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── ai_client.py         # Lógica de classificação + IA
-│   │   └── file_readers.py      # Leitura de .txt e .pdf
+│   │   ├── cliente_ia.py         # Lógica de classificação + IA
+│   │   └── leitor_arquivo.py      # Leitura de .txt e .pdf
 │   ├── static/
 │   │   ├── css/
 │   │   │   └── styles.css       # Design moderno
@@ -76,7 +76,7 @@ email-ai-classifier/
 │   │   └── index.html           # Interface principal
 │   └── utils/
 │       ├── __init__.py
-│       └── text_utils.py        # Utilitários de texto
+│       └── util_texto.py        # Utilitários de texto
 ├── samples/                      # Exemplos de teste
 │   ├── produtivo_1.txt
 │   ├── improdutivo_1.txt

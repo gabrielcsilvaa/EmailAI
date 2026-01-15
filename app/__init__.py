@@ -1,6 +1,6 @@
 from flask import Flask
-from app.routes.api import api_bp
-from app.routes.web import web_bp
+from app.routes.rotas_api import api_bp
+from app.routes.rotas_site import web_bp
 
 def create_app():
     app = Flask(__name__)
