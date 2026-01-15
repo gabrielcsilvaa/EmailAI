@@ -5,12 +5,12 @@ from pypdf import PdfReader
 ALLOWED_EXTENSIONS = {"txt", "pdf"}
 
 
-def allowed_file(filename: str) -> bool:
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+def arquivo_permitido(nome_arquivo: str) -> bool:
+    return "." in nome_arquivo and nome_arquivo.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 
-def _cleanup_text(t: str) -> str:
+def limpar_texto(t: str) -> str:
 
     if not t:
         return ""
@@ -35,7 +35,7 @@ def _cleanup_text(t: str) -> str:
     return "\n".join(out).strip()
 
 
-def _decode_text(file_bytes: bytes) -> str:
+def decodificar_texto(file_bytes: bytes) -> str:
     if not file_bytes:
         return ""
 
@@ -49,13 +49,13 @@ def _decode_text(file_bytes: bytes) -> str:
     return file_bytes.decode("latin-1", errors="ignore")
 
 
-def read_txt(file_bytes: bytes) -> str:
-    text = _decode_text(file_bytes)
-    return _cleanup_text(text)
+def processaTxtImportado(file_bytes: bytes) -> str:
+    text = decodificar_texto(file_bytes)
+    return limpar_texto(text)
 
 
 
-def _extract_page_text(page) -> str:
+def extrair_texto_pagina(page) -> str:
     try:
         txt = page.extract_text(extraction_mode="layout")  # type: ignore
         if txt and txt.strip():
@@ -74,12 +74,12 @@ def _extract_page_text(page) -> str:
     return ""
 
 
-def _is_probably_scanned(extracted_text: str) -> bool:
-    t = (extracted_text or "").strip()
+def provavelmente_escaneado(texto_extraido: str) -> bool:
+    t = (texto_extraido or "").strip()
     return len(t) < 80
 
 
-def read_pdf(file_bytes: bytes) -> str:
+def ProcessaPdfImportado(file_bytes: bytes) -> str:
     if not file_bytes:
         return ""
 
@@ -87,16 +87,16 @@ def read_pdf(file_bytes: bytes) -> str:
     texts = []
 
     for i, page in enumerate(reader.pages):
-        page_text = _extract_page_text(page)
+        page_text = extrair_texto_pagina(page)
         if page_text:
             texts.append(f"[Página {i+1}]\n{page_text}")
         else:
             texts.append(f"[Página {i+1}]\n")  # mantém marcador de página
 
-    full = _cleanup_text("\n\n".join(texts))
+    full = limpar_texto("\n\n".join(texts))
 
-    if _is_probably_scanned(full):
-        return _cleanup_text(
+    if provavelmente_escaneado(full):
+        return limpar_texto(
             "Não consegui extrair texto suficiente do PDF. "
             "Ele parece ser um PDF escaneado (imagem). "
             "Se você puder, envie o conteúdo em .txt, copie/cole o texto do e-mail, "
@@ -106,13 +106,13 @@ def read_pdf(file_bytes: bytes) -> str:
     return full
 
 
-def extract_text_from_upload(filename: str, file_bytes: bytes) -> str:
-    ext = filename.rsplit(".", 1)[1].lower().strip()
+def extrai_texto_do_upload(nome_arquivo: str, file_bytes: bytes) -> str:
+    ext = nome_arquivo.rsplit(".", 1)[1].lower().strip()
 
     if ext == "txt":
-        return read_txt(file_bytes)
+        return processaTxtImportado(file_bytes)
 
     if ext == "pdf":
-        return read_pdf(file_bytes)
+        return ProcessaPdfImportado(file_bytes)
 
     return ""

@@ -1,47 +1,46 @@
 from flask import Blueprint, request, jsonify
 
-from app.services.leitor_arquivo import allowed_file, extract_text_from_upload
-from app.utils.util_texto import normalize_text
-from app.services.cliente_ia import classify_and_reply
+from app.services.leitor_arquivo import arquivo_permitido, extrai_texto_do_upload
+from app.utils.util_texto import processaTextoDigitado
+from app.services.cliente_ia import classificar_email_e_sugerir_resposta
 
 api_bp = Blueprint("api", __name__)
 
+
 @api_bp.post("/process")
-def process_email():
-    email_text = ""
+def processa_email():
+    texto_email = ""
 
-    # JSON ok
     if request.is_json:
-        body = request.get_json(silent=True) or {}
-        email_text = (body.get("text") or "").strip()
+        corpo = request.get_json(silent=True) or {}
+        texto_email = (corpo.get("text") or "").strip()
 
-    #form data (texto)
-    if not email_text:
-        email_text = (request.form.get("text") or "").strip()
+    if not texto_email:
+        texto_email = (request.form.get("text") or "").strip()
 
-    #form data (arquivo)
     if "file" in request.files and request.files["file"]:
-        f = request.files["file"]
-        filename = f.filename or ""
+        arquivo = request.files["file"]
+        nome_arquivo = arquivo.filename or ""
 
-        if not allowed_file(filename):
-            return jsonify({"error": "Formato inválido. Use .txt ou .pdf"}), 400
+        if not arquivo_permitido(nome_arquivo):
+            return jsonify({"error": "Formato invǭlido. Use .txt ou .pdf"}), 400
 
-        file_bytes = f.read()
-        extracted = extract_text_from_upload(filename, file_bytes)
-        if extracted:
-            email_text = extracted.strip()
+        bytes_arquivo = arquivo.read()
+        texto_extraido = extrai_texto_do_upload(nome_arquivo, bytes_arquivo)
+        if texto_extraido:
+            texto_email = texto_extraido.strip()
 
-    email_text = normalize_text(email_text)
+    if texto_email:
+        texto_email = processaTextoDigitado(texto_email)
 
-    if not email_text:
+    if not texto_email:
         return jsonify({"error": "Envie um texto ou um arquivo para processar."}), 400
 
-    result = classify_and_reply(email_text)
+    resultado = classificar_email_e_sugerir_resposta(texto_email)
 
     return jsonify({
-        "categoria": result.get("categoria"),
-        "justificativa_curta": result.get("justificativa_curta"),
-        "resposta": result.get("resposta"),
-        "preview": email_text[:400]
+        "categoria": resultado.get("categoria"),
+        "justificativa_curta": resultado.get("justificativa_curta"),
+        "resposta": resultado.get("resposta"),
+        "preview": texto_email[:400]
     })

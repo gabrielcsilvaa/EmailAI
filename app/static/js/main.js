@@ -206,7 +206,8 @@ function createResultCard(result, index) {
         ? '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         : '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
     
-    const responseText = result.resposta || '';
+    // Generate 3 response variations (informal, formal, professional)
+    const responses = generateResponseVariations(result.resposta || '');
     
     return `
         <div class="result-card" id="result-${index}">
@@ -253,7 +254,7 @@ function createResultCard(result, index) {
                         Sugestões de Resposta
                     </div>
                     <div class="response-options">
-                        ${verificationNoReply(result.justificativa_curta, responseText, index)}
+                        ${verificationNoReply(result.justificativa_curta, responses, index)}
                     </div>
                 </div>
             </div>
@@ -306,11 +307,44 @@ function createErrorCard(result, index) {
     `;
 }
 
-function verificationNoReply(justificationResponse, responseText, index) {
-    if (justificationResponse.indexOf("'no-reply'") === -1) {
-        return createResponseOption('formal', responseText, index);
+function generateResponseVariations(baseResponse) {
+    const informal = baseResponse
+        .replace(/\bOlá\b/gi, 'Oi')
+        .replace(/Como posso ajudar você\?/gi, 'Como posso te ajudar?')
+        .replace(/\bvocê\b/gi, 'tu')
+        .replace(/\bseu\b/gi, 'teu')
+        .replace(/\bClaro!\b/gi, 'Claro!')
+        + ' ';
+
+    const formal = baseResponse
+        .replace(/\bOi\b/gi, 'Olá')
+        .replace(/\btu\b/gi, 'você')
+        .replace(/\bteu\b/gi, 'seu')
+        .replace(/😊|🎄|✨/g, '')
+        + ' ';
+
+    const professional = 'Prezado(a), ' + baseResponse
+        .replace(/\bOi\b/gi, 'Bom dia')
+        .replace(/\btu\b/gi, 'Vossa Senhoria')
+        .replace(/\bteu\b/gi, 'seu')
+        .replace(/😊|🎄|✨/g, '')
+        .replace(/!/g, '.')
+        + ' ';
+
+    return { informal, formal, professional };
+}
+
+
+function verificationNoReply(justificationResponse, responses, index) {
+    if (justificationResponse.indexOf("'no-reply'") === -1 || justificationResponse.indexOf('no-reply') === -1) {
+        return ` 
+        ${createResponseOption('informal', responses.informal, index)}
+        ${createResponseOption('formal', responses.formal, index)}
+        ${createResponseOption('profissional', responses.professional, index)}
+        `
+    } else {
+         return `${createResponseOption('formal', responses.formal, index)}`
     }
-    return '';
 }
 
 async function copyResponse(elementId) {
@@ -349,4 +383,3 @@ function showToast(message, type = 'success') {
         elements.toast.classList.remove('show');
     }, 3000);
 }
-
