@@ -8,29 +8,18 @@ api_bp = Blueprint("api", __name__)
 
 @api_bp.post("/process")
 def process_email():
-    """
-    Aceita:
-    - JSON: { "text": "..." }
-    OU
-    - multipart/form-data:
-        - file: arquivo .txt/.pdf
-        - text: (opcional) texto manual
-    Retorna:
-    - { categoria, justificativa_curta, resposta, preview }
-    """
-
     email_text = ""
 
-    # 1) JSON
+    # 1) JSON ok
     if request.is_json:
         body = request.get_json(silent=True) or {}
         email_text = (body.get("text") or "").strip()
 
-    # 2) form-data (texto)
+    # 2) form data (texto)
     if not email_text:
         email_text = (request.form.get("text") or "").strip()
 
-    # 3) form-data (arquivo)
+    # form  data (arquivo)
     if "file" in request.files and request.files["file"]:
         f = request.files["file"]
         filename = f.filename or ""

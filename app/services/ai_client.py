@@ -8,17 +8,10 @@ from typing import Dict, Any
 
 import google.generativeai as genai
 
-# ============================================================
-# Logger
-# ============================================================
+
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-
-
-# ============================================================
-# NLP básico (pré-processamento explícito para o case)
-# ============================================================
 
 STOPWORDS_PT_BR = {
     "a", "o", "os", "as", "um", "uma", "uns", "umas",
@@ -30,26 +23,17 @@ STOPWORDS_PT_BR = {
 
 
 def preprocess_text(text: str) -> str:
-    """
-    Pré-processamento NLP básico:
-    - normalização (lower + espaços)
-    - remoção de pontuação excessiva
-    - remoção simples de stopwords
-    """
     t = (text or "").strip().lower()
     t = re.sub(r"\s+", " ", t)
-    # remove pontuações comuns (mantém acentos)
     t = re.sub(r"[^\w\sáàâãéèêíìîóòôõúùûç]", " ", t, flags=re.IGNORECASE)
     t = re.sub(r"\s+", " ", t).strip()
 
-    # remove stopwords simples
     tokens = [tok for tok in t.split(" ") if tok and tok not in STOPWORDS_PT_BR]
     return " ".join(tokens).strip()
 
 
-# ============================================================
-# Regras MÍNIMAS (apenas casos 100% óbvios)
-# ============================================================
+def _norm(text: str) -> str:
+    return preprocess_text(text)
 
 SOCIAL_KEYWORDS = [
     "feliz natal",
@@ -59,38 +43,44 @@ SOCIAL_KEYWORDS = [
     "parabens",
 ]
 
+TRIVIAL_PATTERNS = [
+    r"^\s*oi\s*!?\s*$",
+    r"^\s*ol[áa]\s*!?\s*$",
+    r"^\s*bom\s+dia\s*!?\s*$",
+    r"^\s*boa\s+tarde\s*!?\s*$",
+    r"^\s*boa\s+noite\s*!?\s*$",
+    r"^\s*ok\s*!?\s*$",
+    r"^\s*blz\s*!?\s*$",
+    r"^\s*t[áa]\s*!?\s*$",
+    r"^\s*valeu\s*!?\s*$",
+]
 
-def _norm(text: str) -> str:
-    """Normalização simples para checagem de regras"""
-    return preprocess_text(text)
+SPAM_STRONG_KEYWORDS = [
+    "promoção", "promocao", "oferta", "desconto", "imperdível", "imperdivel",
+    "compre", "comprar", "cupom", "frete grátis", "frete gratis",
+    "clique aqui", "ganhe", "aproveite", "newsletter", "assinatura",
+    "unsubscribe", "descadastrar", "descadastre", "remover inscrição", "remover inscricao",
+    "marketing", "publicidade", "propaganda", "anúncio", "anuncio",
+    "black friday", "liquidação", "liquidacao",
+]
+
+URL_REGEX = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
 
 
 def is_social_message(email_text: str) -> bool:
-    """
-    Detecta APENAS mensagens sociais muito óbvias e curtas.
-    Ex: "Feliz Natal!", "Parabéns!"
-    
-    Não trata: "oi", "obrigado", etc. (deixa pra IA)
-    """
     t = _norm(email_text)
-    
-    # Regra: tem keyword social E é curto (menos de 100 chars processados)
     has_social = any(kw in t for kw in SOCIAL_KEYWORDS)
-    is_short = len(t) <= 100
-    
+    is_short = len(t) <= 120
     return has_social and is_short
 
 
 def social_message_reply(email_text: str) -> Dict[str, str]:
-    """
-    Resposta automática para mensagens sociais detectadas por regra.
-    """
     t = _norm(email_text)
 
     if "feliz natal" in t or "boas festas" in t:
-        resposta = "Obrigado! Feliz Natal pra você também! 🎄✨"
+        resposta = "Obrigado pela mensagem! Feliz Natal pra você também! 🎄✨"
     elif "feliz ano novo" in t:
-        resposta = "Obrigado! Feliz Ano Novo pra você também! 🎆✨"
+        resposta = "Obrigado pela mensagem! Feliz Ano Novo pra você também! 🎆✨"
     elif "parabéns" in t or "parabens" in t:
         resposta = "Muito obrigado! 😊"
     else:
@@ -103,117 +93,223 @@ def social_message_reply(email_text: str) -> Dict[str, str]:
     }
 
 
-# ============================================================
-# Prompt melhorado (mais contexto, menos rígido)
-# ============================================================
+def is_trivial_message(email_text: str) -> bool:
+    raw = (email_text or "").strip().lower()
+    if not raw:
+        return True
+
+    # Se é literalmente só cumprimento/ok, pega pelos patterns
+    for pat in TRIVIAL_PATTERNS:
+        if re.match(pat, raw):
+            return True
+
+    # Heurística curta: poucas palavras e SEM sinais de contexto de trabalho
+    # (evita marcar "status caso 123" como trivial)
+    norm = _norm(raw)
+    words = [w for w in norm.split() if w]
+    if len(words) <= 2:
+        # Se contém palavra de trabalho, NÃO é trivial
+        work_hints = ["caso", "chamado", "status", "suporte", "erro", "problema", "documento", "contrato", "pagamento"]
+        if any(h in norm for h in work_hints):
+            return False
+        return True
+
+    return False
+
+
+def is_strong_spam(email_text: str) -> bool:
+    raw = (email_text or "").strip()
+    t = raw.lower()
+
+    has_url = bool(URL_REGEX.search(raw))
+
+    hits = 0
+    for kw in SPAM_STRONG_KEYWORDS:
+        if kw in t:
+            hits += 1
+
+    if has_url and hits >= 1:
+        return True
+    if hits >= 2:
+        return True
+    if "unsubscribe" in t or "descadastrar" in t or "remover inscr" in t:
+        return True
+
+    return False
+
+NOREPLY_REGEX = re.compile(
+    r"\b(no[-_.]?reply|donotreply|do[-_.]?not[-_.]?reply|noreply)\b",
+    re.IGNORECASE
+)
+
+def is_noreply_email(email_text: str) -> bool:
+    return bool(NOREPLY_REGEX.search(email_text))
+
+
+def spam_reply() -> Dict[str, str]:
+    return {
+        "categoria": "Improdutivo",
+        "resposta": "Obrigado pela mensagem.",
+        "justificativa_curta": "Conteúdo com características de spam/propaganda, sem necessidade de ação.",
+    }
+
+
+def trivial_reply() -> Dict[str, str]:
+    return {
+        "categoria": "Improdutivo",
+        "resposta": "Olá! Se precisar de algo relacionado ao trabalho, fico à disposição.",
+        "justificativa_curta": "Mensagem muito curta e sem contexto de trabalho.",
+    }
+    
+def noreply_email_reply() -> Dict[str, str]:
+    return {
+        "categoria": "Improdutivo",
+        "resposta": "Mensagem recebida. Este é um e-mail automático que não requer resposta.",
+        "justificativa_curta": "E-mail automático identificado como 'no-reply', sem necessidade de resposta."
+    }
+
+def _limit_text_for_ai(text: str, max_chars: int = 6000) -> str:
+    t = (text or "").strip()
+    if len(t) <= max_chars:
+        return t
+
+    head = int(max_chars * 0.7)
+    tail = max_chars - head
+
+    return (
+        t[:head]
+        + "\n\n[...trecho do e-mail truncado para análise...]\n\n"
+        + t[-tail:]
+    )
 
 def build_prompt(email_text: str) -> str:
-    """
-    Prompt que dá contexto completo e exemplos para o Gemini.
-    """
     return f"""
-Você é um assistente de classificação de e-mails para uma empresa financeira responda conforme isso.
+Você é um assistente de classificação de e-mails para uma empresa do setor financeiro.
 
-Seu trabalho é:
-1. Classificar o e-mail como "Produtivo" ou "Improdutivo"
-2. Sugerir uma resposta curta, profissional e adequada
+Tarefa:
+1) Classificar o e-mail como "Produtivo" ou "Improdutivo"
+2) Sugerir uma resposta curta, profissional e adequada
 
-**Categorias:**
-- **Produtivo**: e-mails que exigem ação/resposta (ex: dúvidas, solicitações, pedidos de status, suporte, envio de documentos, pedidos de ajuda)
-- **Improdutivo**: e-mails sociais/cortesia que não exigem ação imediata (ex: agradecimentos, cumprimentos, felicitações)
+DEFINIÇÕES IMPORTANTES:
+- Produtivo:
+  - E-mails de TRABALHO que exigem ação ou resposta objetiva
+  - Solicitações, dúvidas, pedidos de status, suporte, envio/validação de documentos, processos internos, assuntos da empresa
 
-**Exemplos:**
+- Improdutivo:
+  - Spam, propaganda, marketing, anúncios, newsletter
+  - Mensagens sociais/cortesia sem ação imediata (felicitações, agradecimentos)
+  - Cumprimentos genéricos ou vazios como: "oi", "olá", "bom dia", "ok"
 
+EXEMPLOS:
 E-mail: "Oi"
-Categoria: Produtivo
-Resposta: "Olá! Como posso ajudar você?"
+Categoria: Improdutivo
+Resposta: "Olá! Se precisar de algo relacionado ao trabalho, fico à disposição."
+
+E-mail: "Promoção imperdível! Clique aqui: http://..."
+Categoria: Improdutivo
+Resposta: "Obrigado pela mensagem."
 
 E-mail: "Obrigado pela ajuda!"
 Categoria: Improdutivo
-Resposta: "Imagina! Se precisar de algo mais, estou à disposição 😊"
+Resposta: "Por nada! Se precisar de algo mais, fico à disposição."
 
-E-mail: "Preciso do status do meu caso 12345"
+E-mail: "Preciso do status do meu chamado 12345"
 Categoria: Produtivo
-Resposta: "Claro! Vou verificar o status do caso 12345 e retorno em breve."
+Resposta: "Vou verificar o status do chamado 12345 e retorno em breve."
 
 E-mail: "Pode me enviar o relatório de vendas?"
 Categoria: Produtivo
-Resposta: "Sim! Vou providenciar o relatório de vendas e envio assim que possível."
+Resposta: "Claro! Vou providenciar o relatório e envio assim que possível."
 
-E-mail: "Me ajuda a organizar esses emails?"
-Categoria: Produtivo
-Resposta: "Claro! Você pode me encaminhar os e-mails que deseja organizar e eu classifico cada um como Produtivo ou Improdutivo."
+REGRAS DA RESPOSTA:
+- 1 a 2 frases
+- Tom profissional e amigável
+- Não invente dados (se faltar informação, peça de forma objetiva)
+- Retorne APENAS um JSON válido (sem texto antes ou depois, sem markdown)
+- Não use blocos de código (não use ```)
 
-**Regras da resposta:**
-- Seja breve (1-2 frases)
-- Tom profissional mas amigável
-- Para e-mails produtivos vagos: peça mais informações de forma natural
-- Para e-mails improdutivos: seja cordial e deixe porta aberta
-
-**Formato de saída (APENAS JSON, sem markdown):**
+FORMATO DE SAÍDA:
 {{"categoria":"Produtivo|Improdutivo","resposta":"...","justificativa_curta":"..."}}
 
-**E-mail para classificar:**
+E-mail para classificar:
 \"\"\"{email_text}\"\"\"
 
-Retorne APENAS o JSON, sem explicações adicionais.
+Retorne APENAS o JSON.
 """.strip()
 
 
 def build_fix_json_prompt(bad_output: str) -> str:
-    """
-    Prompt para corrigir JSON inválido.
-    """
     return f"""
-Você retornou algo fora do formato JSON esperado.
+Reescreva o conteúdo abaixo como APENAS um JSON válido (sem texto antes ou depois).
+Não use markdown, não use ```.
 
-Converta o conteúdo abaixo para APENAS um JSON válido, sem markdown, sem ```.
-Use exatamente estas chaves:
+O JSON deve conter exatamente:
 {{"categoria":"Produtivo|Improdutivo","resposta":"...","justificativa_curta":"..."}}
 
-Conteúdo a converter:
+Conteúdo:
 \"\"\"{bad_output}\"\"\"
 
-Retorne APENAS o JSON corrigido.
+Retorne SOMENTE o JSON.
 """.strip()
-
 
 # ============================================================
 # Parser e sanitização
 # ============================================================
 
 def _extract_json(text: str) -> Dict[str, Any]:
-    """
-    Extrai JSON do texto, removendo markdown e pegando primeiro {...}
-    """
     text = (text or "").strip()
 
-    # remove cercas ```json ... ``` ou ```...```
     text = re.sub(r"^```json\s*", "", text)
     text = re.sub(r"^```\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
 
-    # pega o primeiro { ... }
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-    if match:
-        text = match.group(0)
+    m = re.search(r"\{.*?\}", text, flags=re.DOTALL)
+    if m:
+        return json.loads(m.group(0))
 
-    return json.loads(text)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return json.loads(text[start:end+1])
+
+    raise json.JSONDecodeError("No JSON object found", text, 0)
+
+
+def _repair_json_loose(text: str) -> Dict[str, Any]:
+    t = (text or "").strip()
+
+    t = re.sub(r"^```json\s*", "", t)
+    t = re.sub(r"^```\s*", "", t)
+    t = re.sub(r"\s*```$", "", t)
+
+    start = t.find("{")
+    end = t.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        t = t[start:end+1]
+
+    t = t.replace("“", '"').replace("”", '"').replace("’", "'")
+    t = re.sub(r",\s*([}\]])", r"\1", t)
+
+    try:
+        return json.loads(t)
+    except Exception:
+        pass
+
+    t2 = re.sub(r"(?<=\{|,)\s*'([^']+)'\s*:", r'"\1":', t)
+    t2 = re.sub(r":\s*'([^']*)'\s*(?=[,}])", r': "\1"', t2)
+    t2 = re.sub(r",\s*([}\]])", r"\1", t2)
+
+    return json.loads(t2)
 
 
 def _sanitize_result(data: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Garante que o resultado tenha formato válido.
-    """
     categoria = data.get("categoria", "Produtivo")
     resposta = data.get("resposta", "")
     justificativa = data.get("justificativa_curta", "")
 
-    # valida categoria
     if categoria not in ("Produtivo", "Improdutivo"):
         categoria = "Produtivo"
 
-    # garante strings
     if not isinstance(resposta, str):
         resposta = str(resposta)
     if not isinstance(justificativa, str):
@@ -222,13 +318,8 @@ def _sanitize_result(data: Dict[str, Any]) -> Dict[str, str]:
     resposta = resposta.strip()
     justificativa = justificativa.strip()
 
-    # garante resposta mínima
     if not resposta:
-        if categoria == "Improdutivo":
-            resposta = "Obrigado pela mensagem! 😊"
-        else:
-            resposta = "Como posso ajudar você?"
-
+        resposta = "Obrigado pela mensagem." if categoria == "Improdutivo" else "Como posso ajudar você?"
     if not justificativa:
         justificativa = "Classificação realizada com base no conteúdo do e-mail."
 
@@ -238,13 +329,11 @@ def _sanitize_result(data: Dict[str, Any]) -> Dict[str, str]:
         "justificativa_curta": justificativa,
     }
 
-
 # ============================================================
-# Detecção de erros específicos
+# Erros específicos
 # ============================================================
 
 def _is_quota_error(err: Exception) -> bool:
-    """Detecta erro de quota/rate limit"""
     msg = str(err).lower()
     return (
         "429" in msg
@@ -257,10 +346,6 @@ def _is_quota_error(err: Exception) -> bool:
 
 
 def _quota_fallback() -> Dict[str, str]:
-    """
-    Fallback APENAS para quota excedida.
-    Não menciona detalhes técnicos, apenas explica de forma amigável.
-    """
     return {
         "categoria": "Produtivo",
         "resposta": (
@@ -271,42 +356,35 @@ def _quota_fallback() -> Dict[str, str]:
         "justificativa_curta": "Sistema temporariamente indisponível (alto volume)."
     }
 
-
 # ============================================================
-# Função principal: classify_and_reply
+# Função principal
 # ============================================================
 
 def classify_and_reply(email_text: str) -> Dict[str, str]:
-    """
-    Classifica o e-mail e sugere resposta.
-    
-    Fluxo:
-    1. Valida entrada
-    2. Checa regras mínimas (social messages muito óbvias)
-    3. Chama IA (Gemini)
-    4. Parse + sanitização
-    5. Fallback só em caso de erro real
-    """
     request_id = str(uuid.uuid4())
     raw_input = (email_text or "").strip()
 
-    # validação básica
     if not raw_input:
         return {
-            "categoria": "Produtivo",
-            "resposta": "Não recebi nenhum conteúdo. Como posso ajudar?",
-            "justificativa_curta": "E-mail vazio."
+            "categoria": "Improdutivo",
+            "resposta": "Mensagem recebida.",
+            "justificativa_curta": "Conteúdo vazio."
         }
 
-    # ============================================================
-    # Regra 1: Mensagens sociais MUITO óbvias (Feliz Natal, etc)
-    # ============================================================
+    # Micro-regras (só casos óbvios)
     if is_social_message(raw_input):
         return social_message_reply(raw_input)
 
-    # ============================================================
-    # Regra 2: Chama IA (caso principal)
-    # ============================================================
+    if is_trivial_message(raw_input):
+        return trivial_reply()
+
+    if is_strong_spam(raw_input):
+        return spam_reply()
+    # Micro-regra 4: E-mail automático (no-reply)
+    if is_noreply_email(raw_input):
+        return noreply_email_reply()
+
+
     api_key = os.getenv("GEMINI_API_KEY", "")
     model_name = os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash")
 
@@ -320,34 +398,27 @@ def classify_and_reply(email_text: str) -> Dict[str, str]:
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(model_name)
 
-    prompt = build_prompt(raw_input)
+    email_for_ai = _limit_text_for_ai(raw_input, max_chars=6000)
+    prompt = build_prompt(email_for_ai)
 
-    def _call_ai(prompt_text: str, temperature: float = 0.3) -> str:
-        """Chama Gemini com configuração apropriada"""
-        try:
-            resp = model.generate_content(
-                prompt_text,
-                generation_config={
-                    "temperature": temperature,
-                    "max_output_tokens": 300,
-                    "response_mime_type": "application/json"
-                }
-            )
-        except TypeError:
-            # fallback se response_mime_type não suportado
-            resp = model.generate_content(
-                prompt_text,
-                generation_config={
-                    "temperature": temperature,
-                    "max_output_tokens": 300
-                }
-            )
-        return (resp.text or "").strip()
 
+    def _call_ai(prompt_text: str, temperature: float = 0.2) -> str:
+        resp = model.generate_content(
+            prompt_text,
+            generation_config={
+                "temperature": temperature,
+                "max_output_tokens": 800,
+            }
+        )
+        return (getattr(resp, "text", "") or "").strip()
+    
+    print("\n===== INPUT_TO_AI (preview) =====", flush=True)
+    print(email_for_ai[:1200], flush=True)
+    print("===== /INPUT_TO_AI =====\n", flush=True)
+
+    
     try:
         started = time.time()
-
-        # Chamada principal
         raw_response = _call_ai(prompt)
 
         elapsed_ms = int((time.time() - started) * 1000)
@@ -361,49 +432,71 @@ def classify_and_reply(email_text: str) -> Dict[str, str]:
             }
         )
 
-        # Parse direto
+        # 1) tenta parse direto
         try:
             parsed = _extract_json(raw_response)
-            return _sanitize_result(parsed)
-
+            result = _sanitize_result(parsed)
         except (json.JSONDecodeError, ValueError) as parse_err:
-            # Tentativa de correção: pede pro Gemini consertar o JSON
-            logger.warning(
-                "AI_INVALID_JSON_RETRY",
-                extra={
-                    "request_id": request_id,
-                    "error": str(parse_err)[:100],
-                }
-            )
-
-            fix_prompt = build_fix_json_prompt(raw_response)
-            fixed_response = _call_ai(fix_prompt, temperature=0.0)
-
+            # 2) tenta reparar localmente
             try:
-                parsed_fixed = _extract_json(fixed_response)
-                return _sanitize_result(parsed_fixed)
-            
-            except Exception as fix_err:
-                # Se ainda falhar, fallback genérico
-                logger.error(
-                    "AI_JSON_FIX_FAILED",
+                repaired = _repair_json_loose(raw_response)
+                result = _sanitize_result(repaired)
+            except Exception:
+                # 3) log + print do que veio
+                logger.warning(
+                    "AI_INVALID_JSON_RETRY",
                     extra={
                         "request_id": request_id,
-                        "error": str(fix_err)[:100],
+                        "error": str(parse_err)[:120],
                     }
                 )
+                print("\n===== RAW_RESPONSE (preview) =====", flush=True)
+                print(raw_response[:2000], flush=True)
+                print("===== /RAW_RESPONSE =====\n", flush=True)
+
+                # 4) tenta pedir pro Gemini corrigir
+                fix_prompt = build_fix_json_prompt(raw_response)
+                fixed_response = _call_ai(fix_prompt, temperature=0.0)
+
+                # print do consertado também
+                print("\n===== FIXED_RESPONSE (preview) =====", flush=True)
+                print(fixed_response[:2000], flush=True)
+                print("===== /FIXED_RESPONSE =====\n", flush=True)
+
+                # tenta parse do consertado
+                try:
+                    parsed_fixed = _extract_json(fixed_response)
+                    result = _sanitize_result(parsed_fixed)
+                except Exception:
+                    try:
+                        repaired_fixed = _repair_json_loose(fixed_response)
+                        result = _sanitize_result(repaired_fixed)
+                    except Exception:
+                        logger.error(
+                            "AI_JSON_FIX_FAILED",
+                            extra={
+                                "request_id": request_id,
+                                "error": "Failed to parse/recover JSON after retry.",
+                            }
+                        )
+                        return {
+                            "categoria": "Produtivo",
+                            "resposta": "Como posso ajudar você?",
+                            "justificativa_curta": "Erro ao processar resposta da IA."
+                        }
+
+        # Guard rail final (corrige casos óbvios)
+        if result.get("categoria") == "Produtivo":
+            if is_strong_spam(raw_input) or is_trivial_message(raw_input) or is_social_message(raw_input):
                 return {
-                    "categoria": "Produtivo",
-                    "resposta": "Como posso ajudar você?",
-                    "justificativa_curta": "Erro ao processar resposta da IA."
+                    "categoria": "Improdutivo",
+                    "resposta": "Obrigado pela mensagem.",
+                    "justificativa_curta": "Conteúdo sem necessidade de ação (social/trivial/spam)."
                 }
 
+        return result
+
     except Exception as e:
-        # ============================================================
-        # Tratamento de erros
-        # ============================================================
-        
-        # Erro de quota
         if _is_quota_error(e):
             logger.warning(
                 "AI_QUOTA_EXCEEDED",
@@ -415,7 +508,6 @@ def classify_and_reply(email_text: str) -> Dict[str, str]:
             )
             return _quota_fallback()
 
-        # Outros erros (rede, API, etc)
         logger.error(
             "AI_CALL_ERROR",
             extra={

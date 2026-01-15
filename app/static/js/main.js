@@ -1,350 +1,376 @@
-// ============================================================
-// ELEMENTS
-// ============================================================
+const $ = (id) => document.getElementById(id);
+const $$ = (selector) => document.querySelectorAll(selector);
 
 const elements = {
-    // Tabs
-    tabs: document.querySelectorAll('.tab'),
-    tabContents: document.querySelectorAll('.tab-content'),
-    
-    // Form
-    form: document.getElementById('emailForm'),
-    emailText: document.getElementById('emailText'),
-    emailFile: document.getElementById('emailFile'),
-    fileLabel: document.getElementById('fileLabel'),
-    filePreview: document.getElementById('filePreview'),
-    charCount: document.getElementById('charCount'),
-    submitBtn: document.getElementById('submitBtn'),
-    
-    // Cards
-    uploadCard: document.getElementById('uploadCard'),
-    resultCard: document.getElementById('resultCard'),
-    
-    // Result elements
-    categoryValue: document.getElementById('categoryValue'),
-    resultCategory: document.getElementById('resultCategory'),
-    resultResponse: document.getElementById('resultResponse'),
-    resultJustification: document.getElementById('resultJustification'),
-    resultPreview: document.getElementById('resultPreview'),
-    previewSection: document.getElementById('previewSection'),
-    
-    // Buttons
-    closeResult: document.getElementById('closeResult'),
-    newClassification: document.getElementById('newClassification'),
-    copyResponse: document.getElementById('copyResponse'),
-    
-    // Toast
-    toast: document.getElementById('toast')
+    form: $('emailForm'),
+    emailText: $('emailText'),
+    emailFiles: $('emailFiles'),
+    filesList: $('filesList'),
+    submitBtn: $('submitBtn'),
+    btnText: $('btnText'),
+    spinner: $('spinner'),
+    resultsArea: $('resultsArea'),
+    toast: $('toast')
 };
 
-// ============================================================
-// TAB SWITCHING
-// ============================================================
+let selectedFiles = [];
 
-elements.tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-        const targetTab = tab.dataset.tab;
-        
-        // Update active tab
-        elements.tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        
-        // Update active content
-        elements.tabContents.forEach(content => {
-            if (content.id === `${targetTab}Content`) {
-                content.classList.add('active');
-            } else {
-                content.classList.remove('active');
-            }
-        });
-        
-        // Clear opposite input
-        if (targetTab === 'text') {
-            elements.emailFile.value = '';
-            hideFilePreview();
-        } else {
-            elements.emailText.value = '';
-            updateCharCount();
+elements.emailFiles.addEventListener('change', (e) => {
+    handleFiles(Array.from(e.target.files));
+});
+
+function handleFiles(files) {
+    files.forEach(file => {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['txt', 'pdf'].includes(ext)) {
+            showToast(`Arquivo ${file.name} não é .txt ou .pdf`, 'error');
+            return;
         }
+        
+        if (file.size > 10 * 1024 * 1024) {
+            showToast(`Arquivo ${file.name} é muito grande (máx. 10MB)`, 'error');
+            return;
+        }
+        
+        if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
+            showToast(`Arquivo ${file.name} já foi adicionado`, 'error');
+            return;
+        }
+        
+        selectedFiles.push(file);
     });
-});
-
-// ============================================================
-// CHARACTER COUNTER
-// ============================================================
-
-function updateCharCount() {
-    const count = elements.emailText.value.length;
-    elements.charCount.textContent = count.toLocaleString('pt-BR');
+    
+    renderFilesList();
+    elements.emailFiles.value = ''; 
 }
 
-elements.emailText.addEventListener('input', updateCharCount);
-
-// ============================================================
-// FILE UPLOAD
-// ============================================================
-
-let selectedFile = null;
-
-elements.emailFile.addEventListener('change', handleFileSelect);
-
-function handleFileSelect(e) {
-    const file = e.target.files[0];
-    
-    if (!file) {
-        hideFilePreview();
+function renderFilesList() {
+    if (selectedFiles.length === 0) {
+        elements.filesList.innerHTML = '';
         return;
     }
     
-    // Validate file type
-    const validTypes = ['.txt', '.pdf'];
-    const fileExt = '.' + file.name.split('.').pop().toLowerCase();
-    
-    if (!validTypes.includes(fileExt)) {
-        showToast('Apenas arquivos .txt e .pdf são permitidos', 'error');
-        elements.emailFile.value = '';
-        hideFilePreview();
-        return;
-    }
-    
-    // Validate file size (10MB)
-    const maxSize = 10 * 1024 * 1024;
-    if (file.size > maxSize) {
-        showToast('Arquivo muito grande. Máximo: 10MB', 'error');
-        elements.emailFile.value = '';
-        hideFilePreview();
-        return;
-    }
-    
-    selectedFile = file;
-    showFilePreview(file);
-}
-
-function showFilePreview(file) {
-    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
-    const fileType = file.name.split('.').pop().toUpperCase();
-    
-    elements.filePreview.innerHTML = `
-        <div class="file-preview-info">
-            <svg class="file-preview-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" stroke-width="2"/>
-                <path d="M13 2v7h7" stroke-width="2"/>
-            </svg>
-            <div class="file-preview-text">
-                <div class="file-preview-name">${file.name}</div>
-                <div class="file-preview-size">${fileType} • ${sizeInMB} MB</div>
+    elements.filesList.innerHTML = selectedFiles.map((file, index) => {
+        const sizeKB = (file.size / 1024).toFixed(1);
+        const ext = file.name.split('.').pop().toUpperCase();
+        
+        return `
+            <div class="file-item">
+                <div class="file-info">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" stroke-width="2"/>
+                        <path d="M13 2v7h7" stroke-width="2"/>
+                    </svg>
+                    <div>
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${ext} • ${sizeKB} KB</div>
+                    </div>
+                </div>
+                <button type="button" class="file-remove" onclick="removeFile(${index})">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M18 6L6 18M6 6l12 12" stroke-width="2"/>
+                    </svg>
+                </button>
             </div>
-            <button type="button" class="file-preview-remove" onclick="removeFile()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="20" height="20">
-                    <path d="M18 6L6 18M6 6l12 12" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-            </button>
-        </div>
-    `;
-    
-    elements.filePreview.classList.add('active');
+        `;
+    }).join('');
 }
 
-function hideFilePreview() {
-    elements.filePreview.classList.remove('active');
-    elements.filePreview.innerHTML = '';
-    selectedFile = null;
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    renderFilesList();
 }
 
-function removeFile() {
-    elements.emailFile.value = '';
-    hideFilePreview();
-}
+window.removeFile = removeFile;
 
-// Drag & Drop
-elements.fileLabel.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    elements.fileLabel.classList.add('drag-over');
-});
 
-elements.fileLabel.addEventListener('dragleave', () => {
-    elements.fileLabel.classList.remove('drag-over');
-});
-
-elements.fileLabel.addEventListener('drop', (e) => {
-    e.preventDefault();
-    elements.fileLabel.classList.remove('drag-over');
-    
-    const file = e.dataTransfer.files[0];
-    if (file) {
-        elements.emailFile.files = e.dataTransfer.files;
-        handleFileSelect({ target: elements.emailFile });
-    }
-});
-
-// ============================================================
-// FORM SUBMISSION
-// ============================================================
 
 elements.form.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    // Determine which tab is active
-    const activeTab = document.querySelector('.tab.active').dataset.tab;
+    const text = elements.emailText.value.trim();
+    const hasFiles = selectedFiles.length > 0;
     
-    // Validate input
-    if (activeTab === 'text') {
-        const text = elements.emailText.value.trim();
-        if (!text) {
-            showToast('Por favor, insira o conteúdo do email', 'error');
-            return;
-        }
-        await classifyEmail({ text });
-    } else {
-        if (!selectedFile) {
-            showToast('Por favor, selecione um arquivo', 'error');
-            return;
-        }
-        await classifyEmail({ file: selectedFile });
+    // Validation
+    if (!text && !hasFiles) {
+        showToast('Adicione texto ou arquivos para processar', 'error');
+        return;
     }
+    
+    // Process
+    await processEmails({ text, files: selectedFiles });
 });
 
-async function classifyEmail(data) {
-    // Show loading state
-    setLoadingState(true);
+async function processEmails({ text, files }) {
+    setLoading(true);
     
     try {
-        const formData = new FormData();
+        const requests = [];
         
-        if (data.text) {
-            formData.append('text', data.text);
-        } else if (data.file) {
-            formData.append('file', data.file);
+        // Add text request if provided
+        if (text) {
+            requests.push({ type: 'text', data: text });
         }
         
-        const response = await fetch('/api/process', {
-            method: 'POST',
-            body: formData
+        // Add file requests
+        files.forEach(file => {
+            requests.push({ type: 'file', data: file });
         });
         
-        if (!response.ok) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        // Process all requests
+        const results = [];
+        for (const req of requests) {
+            try {
+                const result = await processEmail(req);
+                results.push(result);
+            } catch (error) {
+                console.error('Error processing:', error);
+                results.push({
+                    error: true,
+                    message: error.message,
+                    source: req.type === 'file' ? req.data.name : 'Texto direto'
+                });
+            }
         }
         
-        const result = await response.json();
+        displayResults(results);
+        showToast(`${results.length} email(s) processado(s)`, 'success');
         
-        // Show result
-        displayResult(result);
-        showToast('Classificação realizada com sucesso!', 'success');
+        elements.emailText.value = '';
+        selectedFiles = [];
+        renderFilesList();
         
     } catch (error) {
-        console.error('Error:', error);
-        showToast('Erro ao processar o email. Tente novamente.', 'error');
+        showToast('Erro ao processar emails', 'error');
+        console.error(error);
     } finally {
-        setLoadingState(false);
+        setLoading(false);
     }
 }
 
-function setLoadingState(loading) {
-    if (loading) {
-        elements.submitBtn.disabled = true;
-        elements.submitBtn.classList.add('loading');
+async function processEmail(request) {
+    const formData = new FormData();
+    
+    if (request.type === 'text') {
+        formData.append('text', request.data);
     } else {
-        elements.submitBtn.disabled = false;
-        elements.submitBtn.classList.remove('loading');
+        formData.append('file', request.data);
     }
+    
+    const response = await fetch('/api/process', {
+        method: 'POST',
+        body: formData
+    });
+    
+    if (!response.ok) {
+        throw new Error(`Erro ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    return {
+        ...data,
+        source: request.type === 'file' ? request.data.name : 'Texto direto'
+    };
 }
 
-// ============================================================
-// DISPLAY RESULT
-// ============================================================
-
-function displayResult(data) {
-    const { categoria, resposta, justificativa_curta, preview } = data;
-    
-    // Update category
-    elements.categoryValue.textContent = categoria;
-    
-    // Update category badge style
-    const categoryBadge = elements.resultCategory.querySelector('.category-badge');
-    categoryBadge.className = `category-badge ${categoria.toLowerCase()}`;
-    
-    // Update response
-    elements.resultResponse.textContent = resposta;
-    
-    // Update justification
-    elements.resultJustification.textContent = justificativa_curta;
-    
-    // Update preview (if available)
-    if (preview) {
-        elements.resultPreview.textContent = preview;
-        elements.previewSection.style.display = 'block';
-    } else {
-        elements.previewSection.style.display = 'none';
+function displayResults(results) {
+    if (results.length === 0) {
+        elements.resultsArea.innerHTML = `
+            <div class="empty-state">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                    <path d="M12 6v6l4 2" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <p>Nenhum resultado ainda. Adicione emails acima.</p>
+            </div>
+        `;
+        return;
     }
     
-    // Show result card with animation
-    elements.resultCard.style.display = 'block';
+    elements.resultsArea.innerHTML = results.map((result, index) => {
+        if (result.error) {
+            return createErrorCard(result, index);
+        }
+        return createResultCard(result, index);
+    }).join('');
     
-    // Scroll to result
     setTimeout(() => {
-        elements.resultCard.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'nearest' 
-        });
+        elements.resultsArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
 }
 
-// ============================================================
-// RESULT ACTIONS
-// ============================================================
-
-elements.closeResult.addEventListener('click', () => {
-    elements.resultCard.style.display = 'none';
-});
-
-elements.newClassification.addEventListener('click', () => {
-    // Hide result
-    elements.resultCard.style.display = 'none';
+function createResultCard(result, index) {
+    const categoryClass = result.categoria?.toLowerCase() || 'produtivo';
+    const categoryIcon = categoryClass === 'produtivo' 
+        ? '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        : '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
     
-    // Reset form
-    elements.form.reset();
-    elements.emailFile.value = '';
-    hideFilePreview();
-    updateCharCount();
+    // Generate 3 response variations (informal, formal, professional)
+    const responses = generateResponseVariations(result.resposta || '');
     
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-});
+    return `
+        <div class="result-card" id="result-${index}">
+            <div class="result-header">
+                <div class="result-category ${categoryClass}">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        ${categoryIcon}
+                    </svg>
+                    ${result.categoria || 'Produtivo'}
+                </div>
+            </div>
+            
+            <div class="result-body">
+                <!-- Remetente -->
+                <div class="result-section">
+                    <div class="result-label">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="12" cy="7" r="4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Remetente
+                    </div>
+                    <div class="result-content">${result.source || 'Texto direto'}</div>
+                </div>
+                
+                <!-- Resumo -->
+                <div class="result-section">
+                    <div class="result-label">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-width="2"/>
+                            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke-width="2"/>
+                        </svg>
+                        Resumo do E-mail
+                    </div>
+                    <div class="result-content secondary">${result.justificativa_curta || 'Classificação realizada.'}</div>
+                </div>
+                
+                <!-- Sugestões de Resposta -->
+                <div class="result-section">
+                    <div class="result-label">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-width="2"/>
+                        </svg>
+                        Sugestões de Resposta
+                    </div>
+                    <div class="response-options">
+                        ${createResponseOption('informal', responses.informal, index)}
+                        ${createResponseOption('formal', responses.formal, index)}
+                        ${createResponseOption('profissional', responses.professional, index)}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
 
-elements.copyResponse.addEventListener('click', async () => {
-    const response = elements.resultResponse.textContent;
+function createResponseOption(type, text, resultIndex) {
+    const id = `response-${resultIndex}-${type}`;
+    return `
+        <div class="response-option">
+            <div class="response-option-header">
+                <div class="response-option-type">${type}</div>
+                <button class="btn-copy" onclick="copyResponse('${id}')">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-width="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke-width="2"/>
+                    </svg>
+                    Copiar
+                </button>
+            </div>
+            <div class="response-option-text" id="${id}">${text}</div>
+        </div>
+    `;
+}
+
+function createErrorCard(result, index) {
+    return `
+        <div class="result-card" id="result-${index}">
+            <div class="result-header">
+                <div class="result-category improdutivo">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                        <path d="M12 8v4M12 16h.01" stroke-width="2"/>
+                    </svg>
+                    Erro
+                </div>
+            </div>
+            <div class="result-body">
+                <div class="result-section">
+                    <div class="result-label">Mensagem de Erro</div>
+                    <div class="result-content secondary">${result.message}</div>
+                </div>
+                <div class="result-section">
+                    <div class="result-label">Origem</div>
+                    <div class="result-content">${result.source}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function generateResponseVariations(baseResponse) {
+    const informal = baseResponse
+        .replace(/Olá/gi, 'Oi')
+        .replace(/Como posso ajudar você\?/gi, 'Como posso te ajudar?')
+        .replace(/você/gi, 'tu')
+        .replace(/seu/gi, 'teu')
+        .replace(/Claro!/gi, 'Claro!')
+        + ' Qualquer coisa é só falar! 😊';
+    
+    const formal = baseResponse
+        .replace(/Oi/gi, 'Olá')
+        .replace(/tu/gi, 'você')
+        .replace(/teu/gi, 'seu')
+        .replace(/😊/g, '')
+        .replace(/🎄/g, '')
+        .replace(/✨/g, '')
+        + ' Fico à disposição para auxiliá-lo.';
+    
+    const professional = 'Prezado(a), ' + baseResponse
+        .replace(/Oi/gi, 'bom dia')
+        .replace(/tu/gi, 'Vossa Senhoria')
+        .replace(/teu/gi, 'seu')
+        .replace(/😊/g, '')
+        .replace(/🎄/g, '')
+        .replace(/✨/g, '')
+        .replace(/!/g, '.')
+        + ' Atenciosamente, Equipe de Suporte.';
+    
+    return {
+        informal,
+        formal,
+        professional
+    };
+}
+
+async function copyResponse(elementId) {
+    const element = $(elementId);
+    const text = element.textContent;
     
     try {
-        await navigator.clipboard.writeText(response);
+        await navigator.clipboard.writeText(text);
         showToast('Resposta copiada!', 'success');
-        
-        // Visual feedback
-        elements.copyResponse.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M20 6L9 17l-5-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Copiado!
-        `;
-        
-        setTimeout(() => {
-            elements.copyResponse.innerHTML = `
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-width="2"/>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke-width="2"/>
-                </svg>
-                Copiar
-            `;
-        }, 2000);
-        
     } catch (error) {
         showToast('Erro ao copiar', 'error');
     }
-});
+}
 
-// ============================================================
-// TOAST NOTIFICATION
-// ============================================================
+window.copyResponse = copyResponse;
+
+
+function setLoading(loading) {
+    elements.submitBtn.disabled = loading;
+    
+    if (loading) {
+        elements.btnText.style.display = 'none';
+        elements.spinner.style.display = 'block';
+    } else {
+        elements.btnText.style.display = 'block';
+        elements.spinner.style.display = 'none';
+    }
+}
+
 
 function showToast(message, type = 'success') {
     elements.toast.textContent = message;
@@ -354,32 +380,3 @@ function showToast(message, type = 'success') {
         elements.toast.classList.remove('show');
     }, 3000);
 }
-
-// ============================================================
-// KEYBOARD SHORTCUTS
-// ============================================================
-
-document.addEventListener('keydown', (e) => {
-    // Ctrl/Cmd + Enter to submit
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        if (document.activeElement === elements.emailText) {
-            elements.form.dispatchEvent(new Event('submit'));
-        }
-    }
-    
-    // Escape to close result
-    if (e.key === 'Escape') {
-        if (elements.resultCard.style.display === 'block') {
-            elements.resultCard.style.display = 'none';
-        }
-    }
-});
-
-// ============================================================
-// INITIALIZE
-// ============================================================
-
-console.log('✨ EmailAI Classifier iniciado com sucesso!');
-console.log('💡 Atalhos:');
-console.log('   - Ctrl/Cmd + Enter: Enviar formulário');
-console.log('   - Escape: Fechar resultado');
