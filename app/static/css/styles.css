@@ -59,6 +59,10 @@ body {
     gap: var(--spacing-md);
 }
 
+.header-content .btn-submit-history {
+    left: ff;
+}
+
 .logo-icon {
     width: 48px;
     height: 48px;
@@ -587,8 +591,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-left: auto;
     gap: var(--spacing-sm);
-    margin-left: 35rem;
     background: var(--gray-900);
     color: var(--white);
     border: none;
@@ -655,6 +659,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-y: auto;
 }
 
 .side-item {

@@ -501,7 +501,3 @@ backdrop.classList.remove("active");
 buttonHistory.addEventListener("click", abrirModal);
 closeBtn.addEventListener("click", fecharModal);
 backdrop.addEventListener("click", fecharModal);
-
-function itensHistoricoModal() {
-
-}
