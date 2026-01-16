@@ -281,7 +281,7 @@ function criarOpcaoResposta(type, text, resultIndex) {
         <div class="response-option">
             <div class="response-option-header">
                 <div class="response-option-type">${type}</div>
-                <button class="btn-copy" onclick="copiarResposta('${id}')">
+                    <button class="btn-copy" data-target="${id}" onclick="copiarResposta(this.dataset.target)">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-width="2"/>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke-width="2"/>
@@ -361,19 +361,56 @@ function verificarNoReply(justificationResponse, responses, index) {
 }
 
 async function copiarResposta(elementId) {
-    const element = $(elementId);
-    const text = element.textContent;
-    
+  const element = document.getElementById(elementId);
+
+  if (!element) {
+    mostrarToast("Elemento não encontrado", "error");
+    return;
+  }
+
+  const text = element.innerText || element.textContent || "";
+
+  if (!text.trim()) {
+    mostrarToast("Nada para copiar", "error");
+    return;
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
     try {
-        await navigator.clipboard.writeText(text);
-        mostrarToast('Resposta copiada!', 'success');
-    } catch (error) {
-        mostrarToast('Erro ao copiar', 'error');
+      await navigator.clipboard.writeText(text);
+      mostrarToast("Resposta copiada!", "success");
+      return;
+    } catch (err) {
+      console.error("Clipboard API falhou:", err);
+      // cai pro fallback
     }
+  }
+
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+
+    if (ok) {
+      mostrarToast("Resposta copiada!", "success");
+    } else {
+      mostrarToast("Não consegui copiar automaticamente", "error");
+    }
+  } catch (err) {
+    console.error("Fallback copy falhou:", err);
+    mostrarToast("Erro ao copiar", "error");
+  }
 }
 
 window.copiarResposta = copiarResposta;
-
 
 function definirCarregando(loading) {
     elements.submitBtn.disabled = loading;
@@ -465,7 +502,6 @@ buttonHistory.addEventListener("click", abrirModal);
 closeBtn.addEventListener("click", fecharModal);
 backdrop.addEventListener("click", fecharModal);
 
-// Itens do Histórico
 function itensHistoricoModal() {
 
 }

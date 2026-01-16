@@ -1,13 +1,8 @@
-from __future__ import annotations
-from io import BytesIO
-from pypdf import PdfReader
-
 ALLOWED_EXTENSIONS = {"txt", "pdf"}
 
 
 def arquivo_permitido(nome_arquivo: str) -> bool:
     return "." in nome_arquivo and nome_arquivo.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
 
 
 def limpar_texto(t: str) -> str:
@@ -45,14 +40,7 @@ def decodificar_texto(file_bytes: bytes) -> str:
         except UnicodeDecodeError:
             continue
 
-    # Último fallback: ignora erros
     return file_bytes.decode("latin-1", errors="ignore")
-
-
-def processaTxtImportado(file_bytes: bytes) -> str:
-    text = decodificar_texto(file_bytes)
-    return limpar_texto(text)
-
 
 
 def extrair_texto_pagina(page) -> str:
@@ -74,45 +62,22 @@ def extrair_texto_pagina(page) -> str:
     return ""
 
 
-def provavelmente_escaneado(texto_extraido: str) -> bool:
+def extraiEscaneado(texto_extraido: str) -> bool:
     t = (texto_extraido or "").strip()
     return len(t) < 80
-
-
-def ProcessaPdfImportado(file_bytes: bytes) -> str:
-    if not file_bytes:
-        return ""
-
-    reader = PdfReader(BytesIO(file_bytes))
-    texts = []
-
-    for i, page in enumerate(reader.pages):
-        page_text = extrair_texto_pagina(page)
-        if page_text:
-            texts.append(f"[Página {i+1}]\n{page_text}")
-        else:
-            texts.append(f"[Página {i+1}]\n")  # mantém marcador de página
-
-    full = limpar_texto("\n\n".join(texts))
-
-    if provavelmente_escaneado(full):
-        return limpar_texto(
-            "Não consegui extrair texto suficiente do PDF. "
-            "Ele parece ser um PDF escaneado (imagem). "
-            "Se você puder, envie o conteúdo em .txt, copie/cole o texto do e-mail, "
-            "ou gere um PDF 'pesquisável' (exportado com texto)."
-        )
-
-    return full
 
 
 def extrai_texto_do_upload(nome_arquivo: str, file_bytes: bytes) -> str:
     ext = nome_arquivo.rsplit(".", 1)[1].lower().strip()
 
     if ext == "txt":
+        from app.utils.ProcessaTxt import processaTxtImportado
+
         return processaTxtImportado(file_bytes)
 
     if ext == "pdf":
+        from app.utils.ProcessaPdf import ProcessaPdfImportado
+
         return ProcessaPdfImportado(file_bytes)
 
     return ""

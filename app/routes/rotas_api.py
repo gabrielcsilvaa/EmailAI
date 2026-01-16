@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 
 from app.services.leitor_arquivo import arquivo_permitido, extrai_texto_do_upload
-from app.utils.util_texto import processaTextoDigitado
+from app.utils.Processa_texto import processaTextoDigitado
 from app.services.cliente_ia import classificar_email_e_sugerir_resposta
 
 api_bp = Blueprint("api", __name__)
@@ -36,7 +36,7 @@ def processa_email():
     if not texto_email:
         return jsonify({"error": "Envie um texto ou um arquivo para processar."}), 400
 
-    resultado = classificar_email_e_sugerir_resposta(texto_email)
+    resultado = classificar_email_e_sugerir_resposta(texto_email) #arrumar ela e destrinchar pra arrumar email e sugerir resposta separado
 
     return jsonify({
         "categoria": resultado.get("categoria"),
