@@ -5,56 +5,14 @@ import time
 import uuid
 import logging
 from typing import Dict, Any
-
+from app.utils.Respostas import (
+gerar_resposta_mensagem_social,gerar_resposta_trivial,gerar_resposta_spam,gerar_resposta_email_noreply, mensagem_social, mensagem_trivial, gerar_resposta_quota_excedida)
+from app.services.prompt.prompt import construir_prompt_classificacao
 import google.generativeai as genai
-
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-
-STOPWORDS_PT_BR = {
-    "a", "o", "os", "as", "um", "uma", "uns", "umas",
-    "de", "do", "da", "dos", "das", "em", "no", "na", "nos", "nas",
-    "para", "por", "com", "sem", "sobre", "entre",
-    "e", "ou", "mas", "que", "se", "isso", "essa", "esse", "esta", "este",
-    "eu", "você", "vc", "vocês", "nos", "nós", "me", "minha", "meu",
-}
-
-
-def preprocessar_texto(texto: str) -> str:
-    texto_processado = (texto or "").strip().lower()
-    texto_processado = re.sub(r"\s+", " ", texto_processado)
-    texto_processado = re.sub(r"[^\w\sáàâãéèêíìîóòôõúùûç]", " ", texto_processado, flags=re.IGNORECASE)
-    texto_processado = re.sub(r"\s+", " ", texto_processado).strip()
-
-    tokens = [tok for tok in texto_processado.split(" ") if tok and tok not in STOPWORDS_PT_BR]
-    return " ".join(tokens).strip()
-
-
-def normalizar_texto(texto: str) -> str:
-    return preprocessar_texto(texto)
-
-
-PALAVRAS_CHAVE_SOCIAIS = [
-    "feliz natal",
-    "boas festas",
-    "feliz ano novo",
-    "parabéns",
-    "parabens",
-]
-
-PADROES_MENSAGENS_TRIVIAIS = [
-    r"^\s*oi\s*!?\s*$",
-    r"^\s*ol[áa]\s*!?\s*$",
-    r"^\s*bom\s+dia\s*!?\s*$",
-    r"^\s*boa\s+tarde\s*!?\s*$",
-    r"^\s*boa\s+noite\s*!?\s*$",
-    r"^\s*ok\s*!?\s*$",
-    r"^\s*blz\s*!?\s*$",
-    r"^\s*t[áa]\s*!?\s*$",
-    r"^\s*valeu\s*!?\s*$",
-]
 
 PALAVRAS_CHAVE_SPAM_FORTE = [
     "promoção", "promocao", "oferta", "desconto", "imperdível", "imperdivel",
@@ -67,51 +25,6 @@ PALAVRAS_CHAVE_SPAM_FORTE = [
 
 REGEX_URL = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
 
-
-def mensagem_social(texto_email: str) -> bool:
-    texto_normalizado = normalizar_texto(texto_email)
-    tem_palavra_social = any(palavra in texto_normalizado for palavra in PALAVRAS_CHAVE_SOCIAIS)
-    curto = len(texto_normalizado) <= 120
-    return tem_palavra_social and curto
-
-
-def gerar_resposta_mensagem_social(texto_email: str) -> Dict[str, str]:
-    texto_normalizado = normalizar_texto(texto_email)
-
-    if "feliz natal" in texto_normalizado or "boas festas" in texto_normalizado:
-        resposta = "Obrigado pela mensagem! Feliz Natal pra você também! 🎄✨"
-    elif "feliz ano novo" in texto_normalizado:
-        resposta = "Obrigado pela mensagem! Feliz Ano Novo pra você também! 🎆✨"
-    elif "parabéns" in texto_normalizado or "parabens" in texto_normalizado:
-        resposta = "Muito obrigado! 😊"
-    else:
-        resposta = "Obrigado pela mensagem! 😊"
-
-    return {
-        "categoria": "Improdutivo",
-        "resposta": resposta,
-        "justificativa_curta": "Mensagem social sem necessidade de ação.",
-    }
-
-
-def mensagem_trivial(texto_email: str) -> bool:
-    texto_bruto = (texto_email or "").strip().lower()
-    if not texto_bruto:
-        return True
-
-    for padrao in PADROES_MENSAGENS_TRIVIAIS:
-        if re.match(padrao, texto_bruto):
-            return True
-
-    texto_normalizado = normalizar_texto(texto_bruto)
-    palavras = [palavra for palavra in texto_normalizado.split() if palavra]
-    if len(palavras) <= 2:
-        palavras_trabalho = ["caso", "chamado", "status", "suporte", "erro", "problema", "documento", "contrato", "pagamento"]
-        if any(hint in texto_normalizado for hint in palavras_trabalho):
-            return False
-        return True
-
-    return False
 
 
 def spam_forte(texto_email: str) -> bool:
@@ -145,28 +58,6 @@ def email_noreply(texto_email: str) -> bool:
     return bool(REGEX_NOREPLY.search(texto_email))
 
 
-def gerar_resposta_spam() -> Dict[str, str]:
-    return {
-        "categoria": "Improdutivo",
-        "resposta": "Obrigado pela mensagem.",
-        "justificativa_curta": "Conteúdo com características de spam/propaganda, sem necessidade de ação.",
-    }
-
-
-def gerar_resposta_trivial() -> Dict[str, str]:
-    return {
-        "categoria": "Improdutivo",
-        "resposta": "Olá! Se precisar de algo relacionado ao trabalho, fico à disposição.",
-        "justificativa_curta": "Mensagem muito curta e sem contexto de trabalho.",
-    }
-    
-
-def gerar_resposta_email_noreply() -> Dict[str, str]:
-    return {
-        "categoria": "Improdutivo",
-        "resposta": "Mensagem recebida. Este é um e-mail automático que não requer resposta.",
-        "justificativa_curta": "E-mail automático identificado como 'no-reply', sem necessidade de resposta."
-    }
 
 
 def limitar_texto_para_ia(texto: str, maximo_caracteres: int = 6000) -> str:
@@ -183,61 +74,6 @@ def limitar_texto_para_ia(texto: str, maximo_caracteres: int = 6000) -> str:
         + texto_limpo[-tamanho_fim:]
     )
 
-
-def construir_prompt_classificacao(texto_email: str) -> str:
-    return f"""
-Você é um assistente de classificação de e-mails para uma empresa do setor financeiro.
-
-Tarefa:
-1) Classificar o e-mail como "Produtivo" ou "Improdutivo"
-2) Sugerir uma resposta curta, profissional e adequada
-
-DEFINIÇÕES IMPORTANTES:
-- Produtivo:
-  - E-mails de TRABALHO que exigem ação ou resposta objetiva
-  - Solicitações, dúvidas, pedidos de status, suporte, envio/validação de documentos, processos internos, assuntos da empresa
-
-- Improdutivo:
-  - Spam, propaganda, marketing, anúncios, newsletter
-  - Mensagens sociais/cortesia sem ação imediata (felicitações, agradecimentos)
-  - Cumprimentos genéricos ou vazios como: "oi", "olá", "bom dia", "ok"
-
-EXEMPLOS:
-E-mail: "Oi"
-Categoria: Improdutivo
-Resposta: "Olá! Se precisar de algo relacionado ao trabalho, fico à disposição."
-
-E-mail: "Promoção imperdível! Clique aqui: http://..."
-Categoria: Improdutivo
-Resposta: "Obrigado pela mensagem."
-
-E-mail: "Obrigado pela ajuda!"
-Categoria: Improdutivo
-Resposta: "Por nada! Se precisar de algo mais, fico à disposição."
-
-E-mail: "Preciso do status do meu chamado 12345"
-Categoria: Produtivo
-Resposta: "Vou verificar o status do chamado 12345 e retorno em breve."
-
-E-mail: "Pode me enviar o relatório de vendas?"
-Categoria: Produtivo
-Resposta: "Claro! Vou providenciar o relatório e envio assim que possível."
-
-REGRAS DA RESPOSTA:
-- 1 a 2 frases
-- Tom profissional e amigável
-- Não invente dados (se faltar informação, peça de forma objetiva)
-- Retorne APENAS um JSON válido (sem texto antes ou depois, sem markdown)
-- Não use blocos de código (não use ```)
-
-FORMATO DE SAÍDA:
-{{"categoria":"Produtivo|Improdutivo","resposta":"...","justificativa_curta":"..."}}
-
-E-mail para classificar:
-\"\"\"{texto_email}\"\"\"
-
-Retorne APENAS o JSON.
-""".strip()
 
 
 def construir_prompt_correcao_json(saida_invalida: str) -> str:
@@ -340,16 +176,6 @@ def erro_de_quota(erro: Exception) -> bool:
         or "exceeded" in mensagem_erro
     )
 
-
-def gerar_resposta_quota_excedida() -> Dict[str, str]:
-    return {
-        "categoria": "Produtivo",
-        "resposta": (
-            "No momento, o sistema está com alto volume de processamento. "
-            "Pode tentar novamente mais tarde! "
-        ),
-        "justificativa_curta": "Sistema temporariamente indisponível (alto volume)."
-    }
 
 
 def classificar_email_e_sugerir_resposta(texto_email: str) -> Dict[str, str]:
