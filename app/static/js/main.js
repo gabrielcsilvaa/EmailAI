@@ -17,35 +17,35 @@ const elements = {
 let selectedFiles = [];
 
 elements.emailFiles.addEventListener('change', (e) => {
-    handleFiles(Array.from(e.target.files));
+    lerArquivos(Array.from(e.target.files));
 });
 
-function handleFiles(files) {
+function lerArquivos(files) {
     files.forEach(file => {
         const ext = file.name.split('.').pop().toLowerCase();
         if (!['txt', 'pdf'].includes(ext)) {
-            showToast(`Arquivo ${file.name} não é .txt ou .pdf`, 'error');
+            mostrarToast(`Arquivo ${file.name} não é .txt ou .pdf`, 'error');
             return;
         }
         
         if (file.size > 10 * 1024 * 1024) {
-            showToast(`Arquivo ${file.name} é muito grande (máx. 10MB)`, 'error');
+            mostrarToast(`Arquivo ${file.name} é muito grande (máx. 10MB)`, 'error');
             return;
         }
         
         if (selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
-            showToast(`Arquivo ${file.name} já foi adicionado`, 'error');
+            mostrarToast(`Arquivo ${file.name} já foi adicionado`, 'error');
             return;
         }
         
         selectedFiles.push(file);
     });
     
-    renderFilesList();
+    renderizarListaArquivos();
     elements.emailFiles.value = ''; 
 }
 
-function renderFilesList() {
+function renderizarListaArquivos() {
     if (selectedFiles.length === 0) {
         elements.filesList.innerHTML = '';
         return;
@@ -67,7 +67,7 @@ function renderFilesList() {
                         <div class="file-size">${ext} • ${sizeKB} KB</div>
                     </div>
                 </div>
-                <button type="button" class="file-remove" onclick="removeFile(${index})">
+                <button type="button" class="file-remove" onclick="removerArquivo(${index})">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path d="M18 6L6 18M6 6l12 12" stroke-width="2"/>
                     </svg>
@@ -77,12 +77,12 @@ function renderFilesList() {
     }).join('');
 }
 
-function removeFile(index) {
+function removerArquivo(index) {
     selectedFiles.splice(index, 1);
-    renderFilesList();
+    renderizarListaArquivos();
 }
 
-window.removeFile = removeFile;
+window.removerArquivo = removerArquivo;
 
 
 
@@ -94,16 +94,16 @@ elements.form.addEventListener('submit', async (e) => {
     
     // Validation
     if (!text && !hasFiles) {
-        showToast('Adicione texto ou arquivos para processar', 'error');
+        mostrarToast('Adicione texto ou arquivos para processar', 'error');
         return;
     }
     
     // Process
-    await processEmails({ text, files: selectedFiles });
+    await processarEmails({ text, files: selectedFiles });
 });
 
-async function processEmails({ text, files }) {
-    setLoading(true);
+async function processarEmails({ text, files }) {
+    definirCarregando(true);
     
     try {
         const requests = [];
@@ -122,7 +122,7 @@ async function processEmails({ text, files }) {
         const results = [];
         for (const req of requests) {
             try {
-                const result = await processEmail(req);
+                const result = await processarEmail(req);
                 results.push(result);
             } catch (error) {
                 console.error('Error processing:', error);
@@ -134,22 +134,22 @@ async function processEmails({ text, files }) {
             }
         }
         
-        displayResults(results);
-        showToast(`${results.length} email(s) processado(s)`, 'success');
+        exibirResultados(results);
+        mostrarToast(`${results.length} email(s) processado(s)`, 'success');
         
         elements.emailText.value = '';
         selectedFiles = [];
-        renderFilesList();
+        renderizarListaArquivos();
         
     } catch (error) {
-        showToast('Erro ao processar emails', 'error');
+        mostrarToast('Erro ao processar emails', 'error');
         console.error(error);
     } finally {
-        setLoading(false);
+        definirCarregando(false);
     }
 }
 
-async function processEmail(request) {
+async function processarEmail(request) {
     const formData = new FormData();
     
     if (request.type === 'text') {
@@ -175,7 +175,7 @@ async function processEmail(request) {
     };
 }
 
-function displayResults(results) {
+function exibirResultados(results) {
     if (results.length === 0) {
         elements.resultsArea.innerHTML = `
             <div class="empty-state">
@@ -191,9 +191,9 @@ function displayResults(results) {
     
     elements.resultsArea.innerHTML = results.map((result, index) => {
         if (result.error) {
-            return createErrorCard(result, index);
+            return criarCardErro(result, index);
         }
-        return createResultCard(result, index);
+        return criarCardResultado(result, index);
     }).join('');
     
     setTimeout(() => {
@@ -202,10 +202,10 @@ function displayResults(results) {
 
     elements.historyArea.innerHTML += results.map((result) => {
         if (result.error) {
-             return errorItemsHistory(result);
+             return itensHistoricoErro(result);
         }
 
-        return itemsHistory(result);
+        return itensHistorico(result);
     }).join('');
 
     setTimeout(() => {
@@ -213,14 +213,14 @@ function displayResults(results) {
     }, 100);
 }
 
-function createResultCard(result, index) {
+function criarCardResultado(result, index) {
     const categoryClass = result.categoria?.toLowerCase() || 'produtivo';
     const categoryIcon = categoryClass === 'produtivo' 
         ? '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         : '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
     
     // Generate 3 response variations (informal, formal, professional)
-    const responses = generateResponseVariations(result.resposta || '');
+    const responses = gerarVariacoesResposta(result.resposta || '');
     
     return `
         <div class="result-card" id="result-${index}">
@@ -267,7 +267,7 @@ function createResultCard(result, index) {
                         Sugestões de Resposta
                     </div>
                     <div class="response-options">
-                        ${verificationNoReply(result.justificativa_curta, responses, index)}
+                        ${verificarNoReply(result.justificativa_curta, responses, index)}
                     </div>
                 </div>
             </div>
@@ -275,13 +275,13 @@ function createResultCard(result, index) {
     `;
 }
 
-function createResponseOption(type, text, resultIndex) {
+function criarOpcaoResposta(type, text, resultIndex) {
     const id = `response-${resultIndex}-${type}`;
     return `
         <div class="response-option">
             <div class="response-option-header">
                 <div class="response-option-type">${type}</div>
-                <button class="btn-copy" onclick="copyResponse('${id}')">
+                <button class="btn-copy" onclick="copiarResposta('${id}')">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-width="2"/>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke-width="2"/>
@@ -294,7 +294,7 @@ function createResponseOption(type, text, resultIndex) {
     `;
 }
 
-function createErrorCard(result, index) {
+function criarCardErro(result, index) {
     return `
         <div class="result-card" id="result-${index}">
             <div class="result-header">
@@ -320,7 +320,7 @@ function createErrorCard(result, index) {
     `;
 }
 
-function generateResponseVariations(baseResponse) {
+function gerarVariacoesResposta(baseResponse) {
     const informal = baseResponse
         .replace(/\bOlá\b/gi, 'Oi')
         .replace(/Como posso ajudar você\?/gi, 'Como posso te ajudar?')
@@ -348,34 +348,34 @@ function generateResponseVariations(baseResponse) {
 }
 
 
-function verificationNoReply(justificationResponse, responses, index) {
+function verificarNoReply(justificationResponse, responses, index) {
     if (justificationResponse.indexOf("'no-reply'") === -1 || justificationResponse.indexOf('no-reply') === -1) {
         return ` 
-        ${createResponseOption('informal', responses.informal, index)}
-        ${createResponseOption('formal', responses.formal, index)}
-        ${createResponseOption('profissional', responses.professional, index)}
+        ${criarOpcaoResposta('informal', responses.informal, index)}
+        ${criarOpcaoResposta('formal', responses.formal, index)}
+        ${criarOpcaoResposta('profissional', responses.professional, index)}
         `
     } else {
-         return `${createResponseOption('formal', responses.formal, index)}`
+         return `${criarOpcaoResposta('formal', responses.formal, index)}`
     }
 }
 
-async function copyResponse(elementId) {
+async function copiarResposta(elementId) {
     const element = $(elementId);
     const text = element.textContent;
     
     try {
         await navigator.clipboard.writeText(text);
-        showToast('Resposta copiada!', 'success');
+        mostrarToast('Resposta copiada!', 'success');
     } catch (error) {
-        showToast('Erro ao copiar', 'error');
+        mostrarToast('Erro ao copiar', 'error');
     }
 }
 
-window.copyResponse = copyResponse;
+window.copiarResposta = copiarResposta;
 
 
-function setLoading(loading) {
+function definirCarregando(loading) {
     elements.submitBtn.disabled = loading;
     
     if (loading) {
@@ -388,7 +388,7 @@ function setLoading(loading) {
 }
 
 
-function showToast(message, type = 'success') {
+function mostrarToast(message, type = 'success') {
     elements.toast.textContent = message;
     elements.toast.className = `toast ${type} show`;
     
@@ -397,7 +397,7 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-function itemsHistory(result) {
+function itensHistorico(result) {
     const categoryClass = result.categoria?.toLowerCase() || 'produtivo';
     const categoryIcon = categoryClass === 'produtivo' 
     ? '<circle cx="12" cy="12" r="10" stroke-width="2"/><path d="M9 12l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
@@ -425,7 +425,7 @@ function itemsHistory(result) {
     `;
 }
 
-function errorItemsHistory(result) {
+function itensHistoricoErro(result) {
     return `  
         <div class="response-options-history">
             <div class="response-option-history">
@@ -451,21 +451,21 @@ const sideModal = document.getElementById("sideModal");
 const backdrop = document.getElementById("backdrop");
 const closeBtn = document.getElementById("closeModal");
 
-function openModal() {
+function abrirModal() {
 sideModal.classList.add("active");
 backdrop.classList.add("active");
 }
 
-function closeModal() {
+function fecharModal() {
 sideModal.classList.remove("active");
 backdrop.classList.remove("active");
 }
 
-buttonHistory.addEventListener("click", openModal);
-closeBtn.addEventListener("click", closeModal);
-backdrop.addEventListener("click", closeModal);
+buttonHistory.addEventListener("click", abrirModal);
+closeBtn.addEventListener("click", fecharModal);
+backdrop.addEventListener("click", fecharModal);
 
 // Itens do Histórico
-function historyItems() {
+function itensHistoricoModal() {
 
 }
