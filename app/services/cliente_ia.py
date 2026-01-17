@@ -58,8 +58,6 @@ def email_noreply(texto_email: str) -> bool:
     return bool(REGEX_NOREPLY.search(texto_email))
 
 
-
-
 def limitar_texto_para_ia(texto: str, maximo_caracteres: int = 6000) -> str:
     texto_limpo = (texto or "").strip()
     if len(texto_limpo) <= maximo_caracteres:
