@@ -142,7 +142,7 @@ Resposta:
 O projeto esta pronto para deploy em Vercel usando `api/index.py` como entry point.
 Para outros provedores (Render, Heroku), basta apontar para `run.py` e configurar as variaveis de ambiente.
 
-## Video demonstrativo (roteiro sugerido)
+## Video demonstrativo
 
 - Introducao e contexto do desafio.
 - Demonstra a interface e o upload de um email.
