@@ -72,7 +72,7 @@ email-ai-classifier/
   README.md
 ```
 
-## Como rodar localmente
+## Como rodar localmente (use python 3.12)
 
 1) Criar e ativar o ambiente virtual
 ```bash
